@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spectral bipartition — Partitioning for EDA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --bg: #f3efe6; --bg-deep: #e7e0d2; --surface: #fffdf8; --surface2: #efe8db;
+      --ink: #1c2421; --muted: #5c675f; --accent: #0f6b5c; --accent-hover: #0b5347;
+      --accent-soft: #d7efe8; --line: #d5cdc0; --ok: #1f7a4c; --ok-bg: #e4f5eb;
+      --warn: #9a6b12; --warn-bg: #f8efd6; --err: #a33b3b; --err-bg: #f8e6e6;
+      --term-bg: #1c2421; --radius: 12px; --shadow: 0 10px 30px rgba(28,36,33,.06);
+      --font: "Source Sans 3", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      --display: "Fraunces", "Noto Sans SC", Georgia, serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace; --max: 980px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; font-family: var(--font); color: var(--ink); line-height: 1.65;
+      background: radial-gradient(circle at top left, rgba(15,107,92,.08), transparent 28%),
+                  linear-gradient(180deg, var(--bg), var(--bg-deep));
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-underline-offset: .15em; text-decoration: underline; }
+    .skip-link { position: absolute; left: -999px; top: .75rem; background: var(--accent); color: #fff; padding: .5rem .85rem; border-radius: 8px; z-index: 1000; }
+    .skip-link:focus { left: .75rem; }
+    .site-header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); background: rgba(243,239,230,.92); border-bottom: 1px solid var(--line); padding: .85rem 1.25rem; }
+    .site-header-inner { max-width: var(--max); margin: 0 auto; display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; align-items: baseline; justify-content: space-between; }
+    .brand { font-family: var(--display); font-size: 1.05rem; font-weight: 700; margin: 0; }
+    .brand a { color: inherit; text-decoration: none; }
+    .site-nav { display: flex; flex-wrap: wrap; gap: .15rem; }
+    .site-nav a { font-weight: 600; font-size: .9rem; color: var(--muted); padding: .3rem .55rem; border-radius: 6px; text-decoration: none; }
+    .site-nav a:hover, .site-nav a.is-active { color: var(--ink); background: var(--accent-soft); }
+    .site-search { position: relative; min-width: min(100%, 14rem); max-width: 18rem; flex: 1; }
+    .site-search-input { width: 100%; font: inherit; font-size: .9rem; padding: .45rem .7rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+    .site-search-results { position: absolute; top: calc(100% + .35rem); left: 0; right: 0; z-index: 60; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); max-height: 16rem; overflow: auto; }
+    .site-search-hit { display: block; padding: .5rem .75rem; color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); }
+    .site-search-hit:hover { background: var(--accent-soft); }
+    .site-header-crumb { max-width: var(--max); margin: .4rem auto 0; font-size: .85rem; color: var(--muted); }
+    .site-header-crumb .here { color: var(--ink); font-weight: 600; }
+    .site-header-crumb nav > * + *::before { content: "/"; margin: 0 .4rem; color: var(--line); }
+    main { max-width: var(--max); margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+    html[lang="zh-CN"] .eyebrow { letter-spacing: .08em; }
+    .eyebrow { font-family: var(--mono); font-size: .78rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); margin-bottom: .35rem; }
+    h1 { font-family: var(--display); font-size: clamp(1.85rem, 4vw, 2.55rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 .65rem; }
+    h2 { font-family: var(--display); font-size: 1.45rem; margin: 2rem 0 .7rem; }
+    h3 { font-size: 1.05rem; margin: 1.1rem 0 .4rem; }
+    .lead { font-size: 1.05rem; color: var(--muted); max-width: 40rem; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; font-family: var(--font); font-weight: 600; font-size: .92rem; padding: .55rem 1rem; border-radius: 8px; border: 1px solid transparent; cursor: pointer; text-decoration: none; background: none; color: inherit; }
+    .btn:hover { text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); color: #fff; }
+    .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-ghost { background: transparent; color: var(--muted); border-color: var(--line); }
+    .btn-ghost:hover { color: var(--ink); }
+    .btn.is-done { background: var(--ok-bg); color: var(--ok); border-color: #b7dfc6; }
+    .btn-link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: .15em; }
+    .match-col { display: grid; gap: .55rem; align-content: start; }
+    .clip-meta { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; }
+    .pill { display: inline-block; font-family: var(--mono); font-size: .72rem; font-weight: 600; letter-spacing: .02em; padding: .15rem .45rem; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+    .pill-muted { background: var(--surface2); color: var(--muted); }
+    .clip-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.25rem; }
+    .video-panel { margin: 1.25rem 0 1.75rem; }
+    .video-wrap { background: var(--term-bg); border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; display: grid; place-items: center; width: 100%; max-width: 720px; margin: 0 auto; }
+    .video-wrap video { width: 100%; height: 100%; object-fit: contain; background: #1c2421; }
+    .lang-row { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: center; justify-content: space-between; margin-bottom: .75rem; }
+    .video-lang-tabs { max-width: 16rem; margin: 0; }
+    .video-caption { font-size: .95rem; color: var(--muted); margin: 0 0 .65rem; }
+    .lab-steps { margin: 0 0 1.5rem; padding-left: 1.25rem; }
+    .lab-steps li { margin: .35rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; background: var(--surface); border-radius: 10px; overflow: hidden; }
+    th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); }
+    th { color: var(--accent); font-weight: 600; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    pre, .log, .term { font-family: var(--mono); font-size: .82rem; background: var(--term-bg); color: #f3efe6; border-radius: 10px; padding: .85rem 1rem; overflow: auto; }
+    code { font-family: var(--mono); font-size: .9em; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.1rem 1.2rem; box-shadow: var(--shadow); margin: 1rem 0; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+    .split { display: grid; grid-template-columns: 1.05fr 1fr; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .graph { padding: .6rem; background: #f8fafc; }
+    .explain { padding: 1rem 1.15rem; background: var(--surface); }
+    .explain ul { margin: .4rem 0 .8rem; padding-left: 1.15rem; }
+    .kicker { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: #99f6e4; padding: .55rem 1rem 0; background: var(--accent); }
+    .panel-h { margin: 0; padding: .35rem 1rem .55rem; background: var(--accent); color: #fff; font-size: 1.05rem; }
+    .meta { font-size: .78rem; color: #ccfbf1; padding: 0 1rem .55rem; background: var(--accent); }
+    .controls { display: flex; flex-wrap: wrap; gap: .55rem; align-items: end; margin: .75rem 0; }
+    .controls label { display: grid; gap: .2rem; font-size: .85rem; font-weight: 600; }
+    .controls select, .controls input { font: inherit; padding: .4rem .55rem; border: 1px solid var(--line); border-radius: 8px; }
+    .quiz-section { margin-top: 2rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow); }
+    .quiz-item { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem; margin: .9rem 0; }
+    .quiz-item p.prompt { margin: 0 0 .75rem; font-weight: 700; }
+    .quiz-choices { display: grid; gap: .45rem; margin-bottom: .85rem; }
+    .quiz-choices label { display: flex; gap: .65rem; align-items: flex-start; padding: .7rem .8rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer; }
+    .quiz-choices label:hover, .quiz-choices label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+    .quiz-result { margin-top: .75rem; padding: .75rem .85rem; border-radius: 10px; font-size: .92rem; display: none; }
+    .quiz-result.show { display: block; }
+    .quiz-result.ok { background: var(--ok-bg); border: 1px solid #b7dfc6; color: var(--ok); }
+    .quiz-result.bad { background: var(--err-bg); border: 1px solid #ebc0c0; color: var(--err); }
+    .quiz-summary { margin-top: 1rem; padding: 1rem; background: var(--accent-soft); border-radius: 10px; display: none; }
+    .quiz-summary.show { display: block; }
+    .site-footer { max-width: var(--max); margin: 0 auto; padding: 1.5rem 1.25rem 2.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+    .toc { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1.25rem; }
+    .toc a { font-size: .82rem; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: .2rem .65rem; text-decoration: none; color: var(--muted); }
+    .check { display: grid; gap: .4rem; }
+    .check label { display: flex; gap: .55rem; align-items: flex-start; }
+    .page-tabs { display: flex; gap: .4rem; margin: 0 0 1.25rem; padding: .25rem; background: var(--surface2); border-radius: 12px; max-width: 28rem; }
+    .page-tabs button { flex: 1; border: 0; background: transparent; font: inherit; font-weight: 700; padding: .55rem .8rem; border-radius: 9px; cursor: pointer; color: var(--muted); }
+    .page-tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+    .match { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem .75rem; }
+    .match button { text-align: left; font: inherit; cursor: pointer; padding: .7rem .8rem; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+    .match button:hover { border-color: var(--accent); }
+    .match button.picked { border-color: var(--accent); background: var(--accent-soft); }
+    .match button.ok { border-color: #b7dfc6; background: var(--ok-bg); color: var(--ok); }
+    .match button.bad { border-color: #ebc0c0; background: var(--err-bg); color: var(--err); }
+    .match button:disabled { cursor: default; }
+    .status-line { min-height: 1.4em; font-size: .92rem; font-weight: 600; }
+    .status-line.ok { color: var(--ok); }
+    .status-line.bad { color: var(--err); }
+    .edge { stroke: #64748b; stroke-width: 2.4; }
+    .edge.hot { stroke: #c2410c; stroke-width: 3.4; }
+    .edge.dim { stroke: #cbd5e1; }
+    .edge.cut, .edge.drawn { stroke: #c2410c; stroke-width: 3.6; stroke-dasharray: none; }
+    .edge.ghost { stroke: #cbd5e1; stroke-width: 2; stroke-dasharray: 5 4; }
+    .edge.ok-cut { stroke: #1f7a4c; stroke-width: 3.6; stroke-dasharray: none; }
+    .edge.bad-cut { stroke: #a33b3b; stroke-width: 3.6; stroke-dasharray: none; }
+    .edge.missed { stroke: #9a6b12; stroke-width: 3; stroke-dasharray: 4 3; }
+    .hitbar { stroke: transparent; stroke-width: 18; cursor: pointer; }
+    .graph svg { touch-action: none; }
+    .graph.draw { cursor: pointer; }
+    .node-pick, circle.pick { stroke: #0f6b5c; stroke-width: 4; }
+    .nlab { font-size: 10px; fill: #475569; font-family: var(--font); }
+    .lbl { font-size: 12px; fill: #475569; font-family: var(--font); }
+    .n { font-size: 14px; font-weight: 700; fill: #fff; font-family: var(--font); }
+    .walk-btn.is-on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .impl-step { margin: 1rem 0; }
+    .impl-step h3 { margin-top: 0; }
+    .cmd { position: relative; }
+    .cmd pre { margin: .4rem 0 0; white-space: pre-wrap; }
+    .cmd .btn { position: absolute; top: .45rem; right: .45rem; }
+    .gold { background: var(--ok-bg); border: 1px solid #b7dfc6; color: var(--ok); border-radius: 10px; padding: .75rem .9rem; font-family: var(--mono); font-size: .9rem; }
+    .page-tabs { max-width: 36rem; }
+    .mission-head { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-bottom: .4rem; }
+    .xp { font-family: var(--mono); font-size: .85rem; color: var(--accent); font-weight: 700; }
+    @media (max-width: 860px) {
+      .split, .match { grid-template-columns: 1fr; }
+      .clip-toolbar .btn { flex: 1 1 auto; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="skip">Skip to content</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <p class="brand"><a href="#main" data-i18n="brand">EDA Algorithms Platform</a></p>
+      <nav class="site-nav" aria-label="Site" data-i18n-aria="ariaSite">
+        <a href="#lab" data-tab-link="lab" class="is-active" data-i18n="lab">Lab</a>
+        <a href="#game" data-tab-link="game" data-i18n="game">Game</a>
+        <a href="#notes" data-tab-link="notes" data-i18n="notes">Course notes</a>
+        <a href="#quiz" data-tab-link="lab" data-i18n="quiz">Quiz</a>
+      </nav>
+      <div class="page-tabs video-lang-tabs" role="tablist" aria-label="Language" data-i18n-aria="ariaLang">
+        <button type="button" role="tab" data-video-lang="en" aria-selected="true">English</button>
+        <button type="button" role="tab" data-video-lang="zh" aria-selected="false">中文</button>
+      </div>
+      <div class="site-search" data-site-search>
+        <label class="site-search-label" for="site-search-input" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)" data-i18n="search">Search</label>
+        <input id="site-search-input" class="site-search-input" type="search" placeholder="Courses, labs, tools…" autocomplete="off" data-i18n-placeholder="searchPh">
+        <div class="site-search-results" hidden role="listbox"></div>
+      </div>
+    </div>
+    <div class="site-header-crumb">
+      <nav aria-label="Breadcrumb" data-i18n-aria="ariaCrumb">
+        <a href="#main" data-i18n="home">Home</a>
+        <a href="#main" data-i18n="courses">Courses</a>
+        <a href="#main">learn_partitioning</a>
+        <span class="here" data-i18n="lab06">Lab 06</span>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="eyebrow" data-i18n="eyebrow">Partitioning for EDA · Guided lab</div>
+    <section class="hero">
+      <h1 data-i18n="h1">Spectral bipartition</h1>
+      <p class="lead" data-i18n="heroLead">Laplacian / Fiedler: sort the second eigenvector, then sweep balanced prefixes for the cheapest legal cut.</p>
+      <div class="clip-meta">
+        <span class="pill" data-i18n="labOf">Lab 06 of 13</span>
+        <span class="pill pill-muted" data-i18n="lab">Lab</span>
+        <span class="pill pill-muted" id="done-pill" hidden data-i18n="done">Done</span>
+      </div>
+      <nav class="clip-toolbar" aria-label="Lab actions" data-i18n-aria="ariaActions">
+        <button type="button" class="btn btn-secondary" data-tab-link="game" data-i18n="game">Game</button>
+        <button type="button" class="btn btn-secondary" data-tab-link="notes" data-i18n="notes">Course notes</button>
+        <a class="btn btn-primary" href="#tool" data-tab-link="lab" data-i18n="openTool">Open tool</a>
+        <a class="btn btn-secondary" href="https://cdn.jsdelivr.net/gh/SJTU-YONGFU-RESEARCH-GRP/eda-learning@main/courses/learn_partitioning/module02-05-spectral-partition/slides.pptx" data-i18n="pptx">Download PPTX</a>
+        <a class="btn btn-secondary" href="https://cdn.jsdelivr.net/gh/SJTU-YONGFU-RESEARCH-GRP/eda-learning@main/courses/learn_partitioning/module02-05-spectral-partition/slides.pdf" data-i18n="pdf">Download PDF</a>
+        <a class="btn btn-ghost" href="#quiz" data-tab-link="lab" data-i18n="jumpQuiz">Jump to quiz</a>
+        <a class="btn btn-ghost" href="https://github.com/SJTU-YONGFU-RESEARCH-GRP/eda-learning/tree/main/courses/learn_partitioning/module02-05-spectral-partition" rel="noopener" data-i18n="github">Module on GitHub</a>
+        <button type="button" class="btn btn-secondary" id="mark-done" data-i18n="markDone">Mark lab done</button>
+      </nav>
+    </section>
+
+    <div class="page-tabs" role="tablist" aria-label="Lab, game, or course notes" data-i18n-aria="ariaTabs">
+      <button type="button" role="tab" id="tab-lab" aria-controls="panel-lab" aria-selected="true" data-tab="lab" data-i18n="lab">Lab</button>
+      <button type="button" role="tab" id="tab-game" aria-controls="panel-game" aria-selected="false" data-tab="game" data-i18n="game">Game</button>
+      <button type="button" role="tab" id="tab-notes" aria-controls="panel-notes" aria-selected="false" data-tab="notes" data-i18n="notes">Course notes</button>
+    </div>
+
+    <div id="panel-lab" role="tabpanel" aria-labelledby="tab-lab">
+    <nav class="toc" aria-label="On this lab" data-i18n-aria="ariaOnLab">
+      <a href="#clip" data-i18n="video">Video</a>
+      <a href="#steps" data-i18n="whatToDo">What to do</a>
+      <a href="#tool" data-i18n="tool">Tool</a>
+      <a href="#checklist" data-i18n="checklist">Checklist</a>
+      <a href="#quiz" data-i18n="quiz">Quiz</a>
+    </nav>
+
+    <section class="video-panel" id="clip" aria-label="Lab video" data-i18n-aria="ariaVideo">
+      <div class="lang-row">
+        <p class="lead" style="margin:0" data-i18n="watchLang">Watch in your language</p>
+        <div class="page-tabs video-lang-tabs" role="tablist" aria-label="Language" data-i18n-aria="ariaLang">
+          <button type="button" role="tab" data-video-lang="en" aria-selected="true">English</button>
+          <button type="button" role="tab" data-video-lang="zh" aria-selected="false">中文</button>
+        </div>
+      </div>
+      <p class="video-caption" id="video-caption">How Spectral Bipartition Clusters Graphs</p>
+      <div class="video-wrap">
+        <video id="lab-video" controls preload="metadata" playsinline>
+          <source src="media/spectral-en.mp4?v=yourturn-155" type="video/mp4">
+        </video>
+      </div>
+    </section>
+
+    <h2 id="steps" data-i18n="whatToDo">What to do</h2>
+    <ol class="lab-steps">
+      <li data-i18n-html="step1">Watch the short clip in English or 中文, or skim the slides in <button type="button" class="btn-link" data-tab-link="notes">Course notes</button>.</li>
+      <li data-i18n-html="step2">Open the <button type="button" class="btn-link" data-tab-link="game">Game</button> tab for Play the logic and real-life missions, then <a href="#tool">run the student</a> here — click two nodes to join a corridor, same as Lab 03.</li>
+      <li data-i18n="step3">Optional: practice Track A from Course notes — re-implement Laplacian + Fiedler + balanced prefix sweep.</li>
+      <li data-i18n="step4">Mark the lab done when you are satisfied (saved in this browser only).</li>
+    </ol>
+
+    <h2 id="tool" data-i18n="browserTool">Browser tool</h2>
+    <p class="lead" data-i18n="toolLead">Same five-node netlist as greedy pair merge. Load the starter, run or step the Fiedler prefix sweep, then join the remaining cut on the graph. Check against the same spectral code.</p>
+    <div class="controls">
+      <button type="button" class="btn btn-primary" id="load-starter" data-i18n="loadStarter">Load starter</button>
+      <button type="button" class="btn btn-secondary" data-preset="golden" data-i18n="golden">Golden</button>
+      <button type="button" class="btn btn-secondary" data-preset="de" data-i18n="prefixDE">prefix DE</button>
+      <button type="button" class="btn btn-secondary" data-preset="cde" data-i18n="prefixCDE">prefix CDE</button>
+      <button type="button" class="btn btn-primary" id="run-spectral" data-i18n="runSpectral">Run spectral</button>
+      <button type="button" class="btn btn-ghost" id="step-tool" data-i18n="step">Step</button>
+    </div>
+    <p data-i18n-html="drawHelp">Dashed grey = possible corridor. Click two nodes (or a dashed line) to join the <strong>cut</strong> you think spectral still leaves. Click a drawn line to erase it. Then press <strong>Check drawing</strong>.</p>
+    <div class="controls">
+      <button type="button" class="btn btn-primary" id="check-drawing" data-i18n="checkDrawing">Check drawing</button>
+      <button type="button" class="btn btn-ghost" id="clear-lines" data-i18n="clearLines">Clear lines</button>
+    </div>
+    <p class="status-line" id="tool-status"></p>
+    <div class="split">
+      <div class="graph draw" id="tool-graph"></div>
+      <div class="explain">
+        <h3 style="margin-top:0" data-i18n="runLog">Run log</h3>
+        <pre class="log" id="tool-log" style="background:#f1f5f9;color:#0f172a;min-height:12rem">Load the starter, then run.</pre>
+      </div>
+    </div>
+
+    <h2 id="checklist" data-i18n="exitTicket">Your turn / exit ticket</h2>
+    <div class="card check" id="checklist">
+      <label><input type="checkbox"> <span data-i18n="ck1">Worked through course notes on the starter graph.</span></label>
+      <label><input type="checkbox"> <span data-i18n="ck2">Ran spectral (or stepped prefixes) and joined the remaining cut on the graph.</span></label>
+      <label><input type="checkbox"> <span data-i18n-html="ck3">Matched unconstrained golden <code>ABC|DE</code> / cut 3 (C–D and C–E drawn).</span></label>
+      <label><input type="checkbox"> <span data-i18n="ck4">Reported parts, cutsize, and balance (2 vs 3).</span></label>
+      <label><input type="checkbox"> <span data-i18n="ck5">Complete the checklist and quiz.</span></label>
+    </div>
+
+    <section id="quiz" class="quiz-section">
+      <h2 data-i18n="spectralCheck">Spectral check</h2>
+      <p class="lead" data-i18n-html="quizLead">Six questions from the <button type="button" class="btn-link" data-tab-link="notes">Course notes</button> (Laplacian, Fiedler order, prefix table, what to report). Explanations appear after you submit.</p>
+      <div id="quiz-root"></div>
+      <div class="quiz-summary" data-role="summary"></div>
+      <div class="quiz-actions"><button type="button" class="btn btn-primary" id="score-quiz" data-i18n="scoreQuiz">Score quiz</button></div>
+    </section>
+    </div>
+
+    <div id="panel-game" role="tabpanel" aria-labelledby="tab-game" hidden>
+    <nav class="toc" aria-label="On this game" data-i18n-aria="ariaOnGame">
+      <a href="#games" data-i18n="playLogic">Play the logic</a>
+      <a href="#missions" data-i18n="missions">Real-life missions</a>
+    </nav>
+    <p class="lead" data-i18n="gameLead">Match Laplacian terms to their rules, then draw the remaining cut on each real-life graph. Click two nodes (or click a corridor) to draw a line; click again to erase. Check against the same spectral code.</p>
+    <p class="xp" id="xp-line">Missions solved: 0 / 3</p>
+
+    <h2 id="games" data-i18n="playLogic">Play the logic</h2>
+    <div class="card">
+      <h3 data-i18n="matchTitle">Match: spectral term → rule</h3>
+      <p data-i18n="matchHint">Click a term, then its definition.</p>
+      <div class="match" id="match-rules"></div>
+      <p class="status-line" id="match-rules-status"></p>
+      <button type="button" class="btn btn-ghost" data-reset-match="rules" data-i18n="resetGame">Reset this game</button>
+    </div>
+
+    <h2 id="missions" data-i18n="missions">Real-life missions</h2>
+    <p data-i18n-html="missionHelp">Draw every edge that <strong>still crosses</strong> after spectral (the cut). Leave protected heavy corridors undrawn. Then press <strong>Check drawing</strong>.</p>
+    <div id="mission-root"></div>
+    </div>
+
+    <div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" hidden>
+    <nav class="toc" aria-label="Course notes" data-i18n-aria="notes">
+      <a href="#terms" data-i18n="terms">Terminology</a>
+      <a href="#rules" data-i18n="rules">Rules</a>
+      <a href="#walk" data-i18n="walk">Walkthrough</a>
+      <a href="#implement" data-i18n="implement">Implement</a>
+      <a href="#pitfalls" data-i18n="pitfalls">Pitfalls</a>
+    </nav>
+    <h2 id="terms" data-i18n="terms">Terminology</h2>
+    <p class="lead" data-i18n="termsLead">Lock these names; the 中文 switch uses them throughout the page.</p>
+    <table>
+      <tr><th data-i18n="thEn">English</th><th data-i18n="thZh">中文</th></tr>
+      <tr><td>Graph Laplacian</td><td>图拉普拉斯矩阵</td></tr>
+      <tr><td>Eigenvector / Eigenvalue</td><td>特征向量 / 特征值</td></tr>
+      <tr><td>Similarity graph</td><td>相似度图</td></tr>
+      <tr><td>Normalized Cut (Ncut)</td><td>归一化割</td></tr>
+      <tr><td>RatioCut</td><td>比率割</td></tr>
+      <tr><td>Spectrum</td><td>谱</td></tr>
+      <tr><td>Spectral bipartition</td><td>谱双划分</td></tr>
+      <tr><td>Fiedler vector</td><td>费德勒向量</td></tr>
+    </table>
+    <h2 id="rules" data-i18n="mustDo">What the student must do</h2>
+    <p data-i18n-html="mustDoP">Build the graph Laplacian, take the Fiedler vector, sort nodes, and sweep balanced prefixes. The continuous embedding becomes a hard bipartition only after the sweep chooses the best legal cut. Report the partition, its <strong>cutsize</strong>, and its <strong>balance</strong>.</p>
+    <div class="card">
+      <h3 data-i18n="rulesLock">Rules (lock these)</h3>
+      <table>
+        <tr><th data-i18n="thSignal">Signal</th><th data-i18n="thRule">Rule</th></tr>
+        <tr><td data-i18n="rLap">Laplacian</td><td data-i18n-html="rLapV"><code>L = D − A</code> (weighted degrees on the diagonal)</td></tr>
+        <tr><td data-i18n="rFied">Fiedler vector</td><td data-i18n-html="rFiedV">Eigenvector of the second-smallest eigenvalue of L</td></tr>
+        <tr><td data-i18n="rSpec">Spectrum</td><td data-i18n-html="rSpecV">The eigenvalues of L; RatioCut / Ncut are read from this spectrum</td></tr>
+        <tr><td data-i18n="rSim">Similarity graph</td><td data-i18n="rSimV">Edge weights encode similarity; the Laplacian is built from this graph</td></tr>
+        <tr><td data-i18n="rOrder">Order</td><td data-i18n="rOrderV">Sort nodes by Fiedler value (low → high)</td></tr>
+        <tr><td data-i18n="rSweep">Sweep</td><td data-i18n="rSweepV">Each balanced prefix of the order is a candidate side 0</td></tr>
+        <tr><td data-i18n="rPick">Pick</td><td data-i18n="rPickV">Minimum cutsize among legal prefixes (fraction in [0.2, 0.8])</td></tr>
+        <tr><td data-i18n="rGold">Golden</td><td><code>DE|ABC</code> or <code>ABC|DE</code>, cut = 3</td></tr>
+      </table>
+      <p data-i18n-html="tinyOrder">On <code>tiny_graph</code> the order is E, D, C, B, A. The winning prefix is {D,E} versus {A,B,C}.</p>
+    </div>
+    <table>
+      <tr><th data-i18n="thEdge">Edge</th><th class="num" data-i18n="thWeight">Weight</th></tr>
+      <tr><td>A–B</td><td class="num">5</td></tr>
+      <tr><td>B–C</td><td class="num">4</td></tr>
+      <tr><td>C–D</td><td class="num">2</td></tr>
+      <tr><td>D–E</td><td class="num">5</td></tr>
+      <tr><td>A–C</td><td class="num">1</td></tr>
+      <tr><td>C–E</td><td class="num">1</td></tr>
+      <tr><td><strong data-i18n="allSep">All separate cutsize</strong></td><td class="num"><strong>18</strong></td></tr>
+    </table>
+
+    <h2 id="walk" data-i18n="walkH">Walkthrough — Laplacian, order, prefix sweep</h2>
+    <p class="lead" data-i18n-html="walkLead">Same <code>tiny_graph</code>. Spectral recovers the same communities as unconstrained greedy without merging one pair at a time.</p>
+    <div class="controls">
+      <button type="button" class="btn btn-secondary walk-btn" data-walk="0" data-i18n="walk0">1 · Laplacian</button>
+      <button type="button" class="btn btn-secondary walk-btn" data-walk="1" data-i18n="walk1">2 · Fiedler order</button>
+      <button type="button" class="btn btn-secondary walk-btn" data-walk="2" data-i18n="walk2">3 · Prefix sweep</button>
+      <button type="button" class="btn btn-secondary walk-btn" data-walk="3" data-i18n="walk3">4 · Cutsize 3</button>
+      <button type="button" class="btn btn-secondary walk-btn" data-walk="4" data-i18n="walk4">5 · Why spectral</button>
+    </div>
+    <div id="walk-panel"></div>
+    <table>
+      <tr><th data-i18n="thPrefix">Prefix (side 0)</th><th data-i18n="thComp">Complement</th><th data-i18n="thCutE">Cut edges</th><th class="num" data-i18n="thCutsize">Cutsize</th></tr>
+      <tr><td>E</td><td>ABCD</td><td>D–E, C–E</td><td class="num">6</td></tr>
+      <tr><td><strong>DE</strong></td><td><strong>ABC</strong></td><td><strong>C–D, C–E</strong></td><td class="num"><strong>3</strong></td></tr>
+      <tr><td>CDE</td><td>AB</td><td>A–C, B–C</td><td class="num">5</td></tr>
+      <tr><td>BCDE</td><td>A</td><td>A–B, A–C</td><td class="num">6</td></tr>
+    </table>
+
+    <h2 id="implement" data-i18n="implementH">Implement track</h2>
+    <p class="lead" data-i18n="implLead">This is Track A: write the code yourself. The command below is the reference check. You can also run the same golden with a button (it switches to the Lab tool).</p>
+
+    <div class="card impl-step">
+      <h3 data-i18n="impl1">1. What “done” looks like</h3>
+      <p data-i18n-html="impl1p">Run spectral bisection on the five-node starter. You should land on <strong>A–B–C versus D–E</strong> with cutsize <strong>three</strong> and balance <strong>2 vs 3</strong> (side 0 is the Fiedler prefix DE).</p>
+      <p class="gold">parts=ABC|DE  cutsize=3  balance=2 vs 3</p>
+      <p data-i18n-html="impl1q">Fiedler order low→high is <code>E D C B A</code>. The sign of the vector may flip across implementations; the sorted order and the prefix sweep are the contract.</p>
+    </div>
+
+    <div class="card impl-step">
+      <h3 data-i18n="impl2">2. What you re-implement</h3>
+      <ol class="lab-steps">
+        <li data-i18n-html="impl2a">Laplacian <code>L = D − A</code> (weighted).</li>
+        <li data-i18n="impl2b">Fiedler vector: second eigenvector (shifted inverse iteration is enough for n=5).</li>
+        <li data-i18n="impl2c">Sort nodes by Fiedler value.</li>
+        <li data-i18n="impl2d">Sweep balanced prefixes; pick min cutsize; print parts + cutsize + balance.</li>
+      </ol>
+    </div>
+
+    <div class="card impl-step">
+      <h3 data-i18n="impl3">3. Check the reference (from this lab folder)</h3>
+      <div class="cmd">
+        <button type="button" class="btn btn-ghost" data-copy="python3 common/solvers.py examples/tiny_graph.json" data-i18n="copy">Copy</button>
+        <pre><code>python3 common/solvers.py examples/tiny_graph.json</code></pre>
+      </div>
+    </div>
+
+    <div class="card impl-step">
+      <h3 data-i18n="impl4">4. Goldens to match</h3>
+      <p data-i18n-html="impl4p">Each row is one check. Use Copy for the shell, or <strong>Run in lab tool</strong> to see the same partition on this page, then join the remaining cut.</p>
+      <table>
+        <tr><th data-i18n="thCmd">Command</th><th data-i18n="thSee">You should see</th><th></th></tr>
+        <tr>
+          <td><code>python3 common/solvers.py examples/tiny_graph.json</code></td>
+          <td data-i18n-html="goldSee1"><code>ABC|DE</code> cut 3, order E D C B A</td>
+          <td><button type="button" class="btn btn-secondary" data-run-preset="golden" data-i18n="runInLab">Run in lab tool</button></td>
+        </tr>
+        <tr>
+          <td data-i18n="goldCmd2">prefix DE of E D C B A</td>
+          <td data-i18n-html="goldSee2"><code>DE|ABC</code> cut 3 (winner)</td>
+          <td><button type="button" class="btn btn-secondary" data-run-preset="de" data-i18n="runInLab">Run in lab tool</button></td>
+        </tr>
+        <tr>
+          <td data-i18n="goldCmd3">prefix CDE of E D C B A</td>
+          <td data-i18n-html="goldSee3"><code>CDE|AB</code> cut 5 (legal, not min)</td>
+          <td><button type="button" class="btn btn-secondary" data-run-preset="cde" data-i18n="runInLab">Run in lab tool</button></td>
+        </tr>
+      </table>
+    </div>
+
+    <h2 id="pitfalls" data-i18n="pitfallsH">Pitfalls to watch</h2>
+    <ul>
+      <li data-i18n="pit1">Optimizing cut while ignoring balance — this course always reports both.</li>
+      <li data-i18n="pit2">Taking the sign cut at 0 instead of a prefix sweep. C sits near zero; the sweep, not the sign, picks {D,E}.</li>
+      <li data-i18n="pit3">Hard-coding “negative = left.” Eigenvector sign is arbitrary; sort then sweep.</li>
+      <li data-i18n="pit4">Reporting pairwise cut on a hypergraph instance (not this lab’s graph, but a later trap).</li>
+      <li data-i18n="pit5">Blaming spectral when a multilevel flow is actually a coarsening bug.</li>
+    </ul>
+    <p class="lead" data-i18n="flow90">90-minute flow: Laplacian (0–10) → walkthrough (10–30) → browser tool (30–55) → implement (55–80) → quiz (80–90).</p>
+    <p class="lead" style="margin-top:1.5rem">
+      <span data-i18n="mediaSrc">Media source:</span>
+      <a href="https://github.com/SJTU-YONGFU-RESEARCH-GRP/eda-learning/tree/main/courses/learn_partitioning/module02-05-spectral-partition" rel="noopener"><code>SJTU-YONGFU-RESEARCH-GRP/eda-learning/module02-05-spectral-partition/</code></a>
+      · <a href="https://yongfu-li.github.io/eda-learning/courses/learn_partitioning/labs/spectral-partition/index.html" data-i18n="liveLab">live lab</a>
+      · <span data-i18n="localPlan">local plan</span> <code>lesson_plan.md</code>
+    </p>
+    </div>
+  </main>
+  <footer class="site-footer" data-i18n="footer">
+    Course map · progress saved in this browser only.
+  </footer>
+
+<script src="i18n.js"></script>
+<script>
+const GRAPH = {
+  nodes: ["A","B","C","D","E"],
+  edges: [
+    ["A","B",5],["A","C",1],["B","C",4],["C","D",2],["C","E",1],["D","E",5]
+  ]
+};
+const EDGE_OBJS = GRAPH.edges.map(([u,v,w]) => ({u,v,w}));
+const POS = { A:[90,70], B:[250,58], C:[170,150], E:[90,250], D:[270,240] };
+const FILL = { A:"#166534", B:"#14532d", C:"#c2410c", D:"#1d4ed8", E:"#9f1239" };
+const SIDE_FILL = { "0": "#0f6b5c", "1": "#1d4ed8" };
+
+function key(u,v){ return u < v ? u+"|"+v : v+"|"+u; }
+function partsString(asn) {
+  const g = {};
+  for (const [n,c] of Object.entries(asn)) {
+    if (c !== "0" && c !== "1") continue;
+    (g[c] ||= []).push(n);
+  }
+  return Object.values(g).map(a => a.sort().join("")).sort().join("|");
+}
+function cutsize(asn, edges) {
+  let t = 0;
+  for (const {u,v,w} of edges) if (asn[u] !== asn[v]) t += w;
+  return t;
+}
+function balance(asn) {
+  let n0=0, n1=0, miss=0;
+  for (const n of GRAPH.nodes) {
+    if (asn[n]==="0") n0++;
+    else if (asn[n]==="1") n1++;
+    else miss++;
+  }
+  return { n0, n1, miss };
+}
+function emptyAssignment() {
+  return Object.fromEntries(GRAPH.nodes.map(n => [n, ""]));
+}
+
+function laplacian(nodes, edges) {
+  const idx = Object.fromEntries(nodes.map((n,i) => [n,i]));
+  const n = nodes.length;
+  const L = Array.from({length:n}, () => Array(n).fill(0));
+  for (const {u,v,w} of edges) {
+    const i = idx[u], j = idx[v];
+    L[i][j] -= w; L[j][i] -= w; L[i][i] += w; L[j][j] += w;
+  }
+  return L;
+}
+function dot(a,b){ let s=0; for (let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+function norm(a){ return Math.sqrt(dot(a,a)); }
+function spectralBisection(nodes, edges) {
+  const n = nodes.length;
+  const L = laplacian(nodes, edges);
+  const ones = Array(n).fill(1/Math.sqrt(n));
+  let x = Array.from({length:n}, (_,i) => (i%2===0 ? 1 : -1));
+  const proj = dot(x, ones);
+  x = x.map((xi,i) => xi - proj*ones[i]);
+  let xn = norm(x) || 1;
+  x = x.map(xi => xi/xn);
+  const eps = 1e-3;
+  const M = L.map(row => row.slice());
+  for (let i=0;i<n;i++) M[i][i] += eps;
+  for (let iter=0; iter<80; iter++) {
+    let y = x.slice();
+    for (let sweep=0; sweep<40; sweep++) {
+      const yNew = y.slice();
+      for (let i=0;i<n;i++) {
+        let s = x[i];
+        for (let j=0;j<n;j++) if (j!==i) s -= M[i][j]*y[j];
+        yNew[i] = s / M[i][i];
+      }
+      y = yNew;
+    }
+    const yp = dot(y, ones);
+    y = y.map((yi,i) => yi - yp*ones[i]);
+    const yn = norm(y) || 1;
+    x = y.map(yi => yi/yn);
+  }
+  const order = nodes.map((name,i) => [name, x[i]]).sort((a,b) => a[1]-b[1] || (a[0]<b[0]?-1:1));
+  const total = nodes.length;
+  let bestAsn = null, bestCut = Infinity;
+  for (let k=1; k<n; k++) {
+    const left = new Set(order.slice(0,k).map(([name]) => name));
+    const asn = Object.fromEntries(nodes.map(nm => [nm, left.has(nm) ? "0" : "1"]));
+    const frac = left.size / total;
+    if (frac < 0.2 || frac > 0.8) continue;
+    const c = cutsize(asn, edges);
+    if (c < bestCut - 1e-12) { bestCut = c; bestAsn = asn; }
+  }
+  if (!bestAsn) {
+    const k = Math.floor(n/2);
+    const left = new Set(order.slice(0,k).map(([name]) => name));
+    bestAsn = Object.fromEntries(nodes.map(nm => [nm, left.has(nm) ? "0" : "1"]));
+  }
+  return { assignment: bestAsn, order };
+}
+
+function node(id, fill, picked) {
+  const [x,y] = POS[id];
+  const pick = picked ? ` class="pick"` : "";
+  return `<circle${pick} cx="${x}" cy="${y}" r="18" fill="${fill}"/><text class="n" x="${x}" y="${y+5}" text-anchor="middle">${id}</text>`;
+}
+function edge(a,b,w,cls) {
+  const [x1,y1]=POS[a], [x2,y2]=POS[b];
+  const k = key(a,b);
+  return `<g data-edge="${k}">
+      <line class="hitbar" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>
+      <line class="edge ${cls||""}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>
+      <text class="lbl" x="${(x1+x2)/2+8}" y="${(y1+y2)/2-6}">${w}</text>
+    </g>`;
+}
+function svg(inner) {
+  return `<svg viewBox="0 0 360 310" width="100%" height="280" role="img" aria-label="tiny_graph">${inner}</svg>`;
+}
+function drawSketch(drawnSet, pick, mark, fills) {
+  const lines = GRAPH.edges.map(([u,v,w]) => {
+    const k = key(u,v);
+    let cls = drawnSet.has(k) ? "drawn" : "ghost";
+    if (mark && mark.truth) {
+      if (mark.truth.has(k) && drawnSet.has(k)) cls = "ok-cut";
+      else if (drawnSet.has(k) && !mark.truth.has(k)) cls = "bad-cut";
+      else if (mark.truth.has(k) && !drawnSet.has(k)) cls = "missed";
+    }
+    const [x1,y1]=POS[u], [x2,y2]=POS[v];
+    return `<g data-edge="${k}">
+      <line class="hitbar" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>
+      <line class="edge ${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>
+      <text class="lbl" x="${(x1+x2)/2+8}" y="${(y1+y2)/2-6}">${w}</text>
+    </g>`;
+  }).join("");
+  const nodes = GRAPH.nodes.map(n => {
+    const [x,y]=POS[n];
+    const fill = (fills && (fills[n]==="0" || fills[n]==="1")) ? SIDE_FILL[fills[n]] : FILL[n];
+    return `<g data-node="${n}">
+      <circle class="${pick===n?"pick":""}" cx="${x}" cy="${y}" r="18" fill="${fill}"/>
+      <text class="n" x="${x}" y="${y+5}" text-anchor="middle">${n}</text>
+    </g>`;
+  }).join("");
+  const labels = (fills && fills._fiedler) ? GRAPH.nodes.map(n => {
+    const rec = fills._fiedler.find(([nm]) => nm===n);
+    if (!rec) return "";
+    const [x,y]=POS[n];
+    return `<text class="nlab" x="${x}" y="${y-26}" text-anchor="middle">${rec[1].toFixed(2)}</text>`;
+  }).join("") : "";
+  return svg(lines + nodes + labels);
+}
+function draw(hot=[], dim=false, cut=[], asn=null, picked=null, fiedler=null) {
+  const owner = asn || {};
+  const cls = (u,v) => {
+    const k = key(u,v);
+    if (hot.some(([a,b]) => key(a,b)===k)) return "hot";
+    if (cut.some(([a,b]) => key(a,b)===k)) return "cut";
+    if (owner[u] && owner[v] && owner[u]===owner[v]) return "dim";
+    if (owner[u] && owner[v] && owner[u]!==owner[v]) return "cut";
+    if (dim) return "dim";
+    return "";
+  };
+  const fillOf = (n) => {
+    if (owner[n]==="0" || owner[n]==="1") return SIDE_FILL[owner[n]];
+    return FILL[n];
+  };
+  const labels = fiedler ? GRAPH.nodes.map(n => {
+    const [x,y]=POS[n];
+    const rec = fiedler.find(([nm]) => nm===n);
+    if (!rec) return "";
+    return `<text class="nlab" x="${x}" y="${y-26}" text-anchor="middle">${rec[1].toFixed(2)}</text>`;
+  }).join("") : "";
+  return svg(
+    GRAPH.edges.map(([u,v,w]) => edge(u,v,w,cls(u,v))).join("") +
+    GRAPH.nodes.map(n => `<g data-node="${n}">${node(n, fillOf(n), picked===n)}</g>`).join("") +
+    labels
+  );
+}
+
+const WALKS = [
+  { title:"Build the Laplacian", titleZh:"构造图拉普拉斯矩阵", meta:"Step 1 / 5 · L = D − A", metaZh:"第 1 / 5 步 · L = D − A",
+    html:"Spectral methods read connectivity from the graph Laplacian. Degrees sit on the diagonal; off-diagonals are −weight.<ul><li>deg(A)=6, B=9, C=8, D=7, E=6</li><li>The all-ones vector is the trivial eigenvector (λ=0)</li><li>The <em>second</em> eigenvector is the Fiedler vector</li></ul>",
+    htmlZh:"谱方法从图拉普拉斯矩阵读连通性。度在对角线上；非对角元是 −权。<ul><li>deg(A)=6, B=9, C=8, D=7, E=6</li><li>全 1 向量是平凡特征向量（λ=0）</li><li><em>第二</em>特征向量就是费德勒向量</li></ul>",
+    log:"L = D − A\nA row:  6  −5  −1   0   0\nB row: −5   9  −4   0   0\nC row: −1  −4   8  −2  −1\nD row:  0   0  −2   7  −5\nE row:  0   0  −1  −5   6",
+    logZh:"L = D − A（图拉普拉斯矩阵）\nA 行:  6  −5  −1   0   0\nB 行: −5   9  −4   0   0\nC 行: −1  −4   8  −2  −1\nD 行:  0   0  −2   7  −5\nE 行:  0   0  −1  −5   6",
+    graph: () => draw() },
+  { title:"Sort by Fiedler value", titleZh:"按费德勒值排序", meta:"Step 2 / 5 · order E D C B A", metaZh:"第 2 / 5 步 · 次序 E D C B A",
+    html:"Shifted inverse iteration yields a 1-D embedding. Low → high: E, D, C, B, A. E is most negative; A is most positive.<ul><li>Sign of the vector is arbitrary</li><li>C sits near zero — do not trust a raw sign cut</li><li>Next: try every balanced prefix of this order</li></ul>",
+    htmlZh:"移位反幂迭代得到一维嵌入。从低到高：E, D, C, B, A。E 最负；A 最正。<ul><li>特征向量的符号是任意的</li><li>C 靠近零 — 不要相信生硬的符号割</li><li>下一步：尝试该次序的每个平衡前缀</li></ul>",
+    log:"order (low→high)\nE  −0.5533\nD  −0.4889\nC  +0.1057\nB  +0.4176\nA  +0.5190",
+    logZh:"次序（低→高）\nE  −0.5533\nD  −0.4889\nC  +0.1057\nB  +0.4176\nA  +0.5190",
+    graph: () => draw([], false, [], {E:"0",D:"0",C:"1",B:"1",A:"1"}, null, [["E",-0.5533],["D",-0.4889],["C",0.1057],["B",0.4176],["A",0.5190]]) },
+  { title:"Sweep prefixes for best cut", titleZh:"扫描前缀取最佳割", meta:"Step 3 / 5 · balanced prefixes", metaZh:"第 3 / 5 步 · 平衡前缀",
+    html:"Each prefix of the Fiedler order is a candidate side 0. Reject lopsided splits (fraction outside [0.2, 0.8]). Pick minimum cutsize.<ul><li>E | ABCD → cut 6</li><li>DE | ABC → cut 3 ← winner</li><li>CDE | AB → cut 5</li><li>BCDE | A → cut 6</li></ul>",
+    htmlZh:"费德勒次序的每个前缀都是候选第 0 侧。丢掉失衡划分（比例落在 [0.2, 0.8] 之外）。取最小割规模。<ul><li>E | ABCD → 割 6</li><li>DE | ABC → 割 3 ← 胜者</li><li>CDE | AB → 割 5</li><li>BCDE | A → 割 6</li></ul>",
+    log:"sweep prefixes of E D C B A\nkeep fraction in [0.2, 0.8]\nmin cut = 3 at prefix DE",
+    logZh:"扫描 E D C B A 的前缀\n保留比例在 [0.2, 0.8]\n最小割 = 3，前缀 DE",
+    graph: () => draw([], true, [["C","D"],["C","E"]], {D:"0",E:"0",A:"1",B:"1",C:"1"}) },
+  { title:"Result: ABC|DE cutsize 3", titleZh:"结果：ABC|DE 割规模 3", meta:"Step 4 / 5 · golden", metaZh:"第 4 / 5 步 · 标准答案",
+    html:"Cut edges are C–D (2) and C–E (1). Heavy trunks A–B and D–E stay inside. Same communities as unconstrained greedy pair merge.<ul><li>Golden: ABC|DE (or DE|ABC)</li><li>Balance: 2 vs 3 (prefix DE is side 0)</li><li>Always report assignment + cut + balance</li></ul>",
+    htmlZh:"割边是 C–D（2）与 C–E（1）。粗干 A–B、D–E 留在块内。群落与无约束贪心成对合并相同。<ul><li>标准答案：ABC|DE（或 DE|ABC）</li><li>平衡：2 vs 3（前缀 DE 是第 0 侧）</li><li>始终报告划分 + 割 + 平衡</li></ul>",
+    log:"parts=ABC|DE\ncutsize = 2+1 = 3\nbalance = 2 vs 3",
+    logZh:"划分=ABC|DE\n割规模 = 2+1 = 3\n平衡 = 2 vs 3",
+    graph: () => draw([], true, [["C","D"],["C","E"]], {A:"1",B:"1",C:"1",D:"0",E:"0"}) },
+  { title:"When spectral helps", titleZh:"谱方法何时有用", meta:"Step 5 / 5 · initializer", metaZh:"第 5 / 5 步 · 初始化",
+    html:"Spectral is a strong <em>initializer</em> for bipartition. Global eigenvectors find the cut without greedy merges. On larger chips it pairs with multilevel; here the tiny instance grades against golden cut 3.<ul><li>Do not skip the prefix sweep</li><li>KL / FM later refine a seed</li><li>This lab’s contract is the Fiedler order plus the sweep</li></ul>",
+    htmlZh:"谱方法是双划分的强<em>初始化器</em>。全局特征向量不靠贪心合并就能找到割。大芯片上它与多层法配合；这里的小实例按标准割 3 评分。<ul><li>不要跳过前缀扫描</li><li>KL / FM 随后精炼种子</li><li>本实验的合同是费德勒次序加上扫描</li></ul>",
+    log:"spectral = Laplacian + Fiedler + sweep\ngolden communities: ABC | DE\nnext labs: refine, do not redo L",
+    logZh:"谱 = 图拉普拉斯矩阵 + 费德勒向量 + 扫描\n标准群落：ABC | DE\n后续实验：精炼，不要重算 L",
+    graph: () => draw([], true, [["C","D"],["C","E"]], {A:"1",B:"1",C:"1",D:"0",E:"0"}) }
+];
+
+let currentWalk = 0;
+function renderWalk(i) {
+  currentWalk = i;
+  const s = WALKS[i];
+  const zh = currentLang === "zh";
+  const title = zh ? s.titleZh : s.title;
+  const meta = zh ? s.metaZh : s.meta;
+  const html = zh ? s.htmlZh : s.html;
+  const log = zh ? s.logZh : s.log;
+  document.getElementById("walk-panel").innerHTML = `
+    <div class="kicker">${t("kicker")}</div>
+    <h3 class="panel-h">${title}</h3>
+    <div class="meta">${meta} · module02-05-spectral-partition</div>
+    <div class="split">
+      <div class="graph">${s.graph()}</div>
+      <div class="explain"><h4>${t("explanation")}</h4><p>${html}</p><div class="log" style="background:#f1f5f9;color:#0f172a">${log.replaceAll("\n","<br>")}</div></div>
+    </div>`;
+}
+document.querySelectorAll("[data-walk]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("[data-walk]").forEach(x => x.classList.toggle("is-on", x === b));
+  renderWalk(+b.dataset.walk);
+});
+document.querySelector("[data-walk='0']")?.classList.add("is-on");
+renderWalk(0);
+
+const GOLDEN_CUT = new Set(["C|D","C|E"]);
+const PREFIX_STEPS = [
+  { left:["E"], log:"step 1  prefix E | ABCD  cut=6\ncut edges D–E (5), C–E (1)" },
+  { left:["D","E"], log:"step 2  prefix DE | ABC  cut=3  ← min\ncut edges C–D (2), C–E (1)" },
+  { left:["C","D","E"], log:"step 3  prefix CDE | AB  cut=5\ncut edges A–C (1), B–C (4)" },
+  { left:["B","C","D","E"], log:"step 4  prefix BCDE | A  cut=6\ncut edges A–B (5), A–C (1)" }
+];
+
+let asn = emptyAssignment();
+let selected = null;
+let order = null;
+let revealed = false;
+let drawn = new Set();
+let drawMark = null;
+let prefixIdx = -1;
+
+function drawnCutsize() {
+  let t = 0;
+  for (const {u,v,w} of EDGE_OBJS) if (drawn.has(key(u,v))) t += w;
+  return t;
+}
+function truthCutFromAsn() {
+  const labeled = GRAPH.nodes.every(n => asn[n]==="0" || asn[n]==="1");
+  if (!labeled) return GOLDEN_CUT;
+  const cut = new Set();
+  GRAPH.edges.forEach(([u,v]) => { if (asn[u] !== asn[v]) cut.add(key(u,v)); });
+  return cut;
+}
+function metricsText() {
+  const b = balance(asn);
+  const labeled = GRAPH.nodes.every(n => asn[n]==="0" || asn[n]==="1");
+  const lines = [
+    t("picked") + ": " + (selected || "—"),
+    t("linesLab") + ": " + drawn.size + "  " + t("drawnCut") + ": " + drawnCutsize(),
+    t("parts") + ": " + (labeled ? partsString(asn) : "—"),
+    t("solverCut") + ": " + (labeled ? cutsize(asn, EDGE_OBJS) : "—"),
+    t("balance") + ": " + b.n0 + " vs " + b.n1 + " (n=5" + (b.miss ? ", " + t("unlabeled") + " "+b.miss : "") + ")",
+    t("view") + ": " + (revealed ? t("goldenStudy") : t("yourDrawing")),
+    t("tip")
+  ];
+  if (order) for (const [n,v] of order) lines.push(t("fiedler") + " " + n + ": " + v.toFixed(4));
+  return lines.join("\n");
+}
+function setToolStatus(text, kind) {
+  const st = document.getElementById("tool-status");
+  if (!st) return;
+  st.className = "status-line" + (kind ? " " + kind : "");
+  st.textContent = text || "";
+}
+function paintTool() {
+  const fills = Object.assign({}, asn);
+  if (order) fills._fiedler = order;
+  document.getElementById("tool-graph").innerHTML = drawSketch(drawn, selected, drawMark, fills);
+  document.getElementById("tool-log").textContent = metricsText();
+}
+function loadStarter() {
+  asn = emptyAssignment();
+  selected = null;
+  order = null;
+  revealed = false;
+  drawn = new Set();
+  drawMark = null;
+  prefixIdx = -1;
+  paintTool();
+  setToolStatus(t("pickFirst"));
+  document.getElementById("tool-log").textContent = t("starterLog") + metricsText();
+}
+function sweepLog(r) {
+  const names = r.order.map(([n]) => n).join(" ");
+  const lines = ["order (low→high)  " + names];
+  PREFIX_STEPS.forEach((s, i) => {
+    const tag = i === 1 ? "  ← min" : "";
+    lines.push("step " + (i + 1) + "  " + s.log.split("\n")[0].replace(/^step \d+  /, "") + tag);
+  });
+  lines.push("");
+  lines.push("parts=" + partsString(r.assignment) + "  cutsize=" + cutsize(r.assignment, EDGE_OBJS) +
+    "  balance=" + balance(r.assignment).n0 + " vs " + balance(r.assignment).n1);
+  lines.push(t("joinGolden"));
+  return lines.join("\n");
+}
+function runSpectral() {
+  const r = spectralBisection(GRAPH.nodes, EDGE_OBJS);
+  asn = r.assignment;
+  order = r.order;
+  revealed = false;
+  drawMark = null;
+  prefixIdx = 1;
+  paintTool();
+  setToolStatus(t("spectralDone"));
+  document.getElementById("tool-log").textContent = sweepLog(r) + "\n\n" + metricsText();
+}
+function stepPrefix() {
+  if (prefixIdx < 0) showPrefix(0);
+  else showPrefix(Math.min(prefixIdx + 1, PREFIX_STEPS.length - 1));
+}
+function toggleDrawn(k) {
+  drawMark = null;
+  if (drawn.has(k)) drawn.delete(k); else drawn.add(k);
+  selected = null;
+  paintTool();
+  setToolStatus(drawn.size ? drawn.size + " " + t("linesDrawn") : t("pickFirst"));
+}
+function showPrefix(i) {
+  if (!order) {
+    const r = spectralBisection(GRAPH.nodes, EDGE_OBJS);
+    order = r.order;
+  }
+  prefixIdx = i;
+  const step = PREFIX_STEPS[prefixIdx];
+  const left = new Set(step.left);
+  asn = Object.fromEntries(GRAPH.nodes.map(n => [n, left.has(n) ? "0" : "1"]));
+  revealed = false;
+  drawMark = null;
+  paintTool();
+  setToolStatus(t("prefix") + " " + (prefixIdx + 1) + " / " + PREFIX_STEPS.length + ". " + t("prefixJoin"));
+  document.getElementById("tool-log").textContent = step.log + "\n\n" + metricsText();
+}
+function applyPreset(p) {
+  drawn = new Set();
+  selected = null;
+  if (p === "de") showPrefix(1);
+  else if (p === "cde") showPrefix(2);
+  else runSpectral();
+}
+
+document.getElementById("tool-graph").addEventListener("click", (e) => {
+  const edgeEl = e.target.closest("[data-edge]");
+  const nodeEl = e.target.closest("[data-node]");
+  if (edgeEl) { toggleDrawn(edgeEl.getAttribute("data-edge")); return; }
+  if (!nodeEl) return;
+  const n = nodeEl.getAttribute("data-node");
+  if (!selected) { selected = n; paintTool(); return; }
+  if (selected === n) { selected = null; paintTool(); return; }
+  const k = key(selected, n);
+  const exists = GRAPH.edges.some(([u,v]) => key(u,v) === k);
+  if (!exists) {
+    selected = n;
+    paintTool();
+    setToolStatus(t("noCorridor"), "bad");
+    document.getElementById("tool-log").textContent = t("noCorridor") + "\n" + metricsText();
+    return;
+  }
+  toggleDrawn(k);
+});
+function checkLabDrawing() {
+  const labeled = GRAPH.nodes.every(n => asn[n]==="0" || asn[n]==="1");
+  const truth = labeled ? truthCutFromAsn() : GOLDEN_CUT;
+  drawMark = { truth };
+  const extra = [...drawn].filter(k => !truth.has(k));
+  const missing = [...truth].filter(k => !drawn.has(k));
+  const ok = extra.length === 0 && missing.length === 0;
+  paintTool();
+  if (ok) {
+    const parts = labeled ? partsString(asn) : "ABC|DE";
+    const cut = labeled ? cutsize(asn, EDGE_OBJS) : 3;
+    const bal = labeled ? (balance(asn).n0 + " vs " + balance(asn).n1) : "2 vs 3";
+    setToolStatus(t("correctCut") + " " + t("parts") + "=" + parts + "  " + t("thCutsize") + "=" + cut + "  " + t("balance") + "=" + bal + ".", "ok");
+  } else {
+    setToolStatus(t("notYet") + " " + t("missingCut") + ": " + (missing.map(k => k.replace("|","–")).join(", ") || "—") +
+      ". " + t("extraLines") + ": " + (extra.map(k => k.replace("|","–")).join(", ") || "—") +
+      ". " + t("colorHint") + " " + t("goldenHint"), "bad");
+  }
+  return ok;
+}
+document.getElementById("load-starter").onclick = loadStarter;
+document.getElementById("run-spectral").onclick = runSpectral;
+document.getElementById("step-tool").onclick = stepPrefix;
+document.getElementById("check-drawing").onclick = checkLabDrawing;
+document.getElementById("clear-lines").onclick = () => {
+  drawn = new Set();
+  selected = null;
+  drawMark = null;
+  paintTool();
+  setToolStatus(t("linesCleared"));
+};
+document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => applyPreset(b.dataset.preset));
+document.querySelectorAll("[data-run-preset]").forEach(b => b.onclick = () => {
+  showTab("lab");
+  applyPreset(b.dataset.runPreset);
+  setTimeout(() => document.getElementById("tool")?.scrollIntoView({behavior:"smooth"}), 0);
+});
+document.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(b.dataset.copy);
+    b.textContent = t("copied");
+    setTimeout(() => { b.textContent = t("copy"); }, 1200);
+  } catch { b.textContent = t("copyFail"); }
+});
+loadStarter();
+
+function showTab(name) {
+  const ids = ["lab","game","notes"];
+  if (!ids.includes(name)) name = "lab";
+  ids.forEach(id => {
+    document.getElementById("panel-"+id).hidden = id !== name;
+    document.getElementById("tab-"+id).setAttribute("aria-selected", String(id === name));
+  });
+  document.querySelectorAll(".site-nav a[data-tab-link]").forEach(a => {
+    a.classList.toggle("is-active", a.dataset.tabLink === name);
+  });
+  if (history.replaceState) history.replaceState(null, "", "#"+name);
+}
+document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-tab-link]");
+  if (!el) return;
+  const tab = el.dataset.tabLink;
+  if (!tab) return;
+  if (el.tagName === "BUTTON") e.preventDefault();
+  showTab(tab);
+  const href = el.getAttribute("href");
+  if (href && href.startsWith("#") && !["#lab","#notes","#game"].includes(href)) {
+    setTimeout(() => document.querySelector(href)?.scrollIntoView({behavior:"smooth"}), 0);
+  }
+});
+if (["#notes","#walk","#rules","#implement","#pitfalls","#terms"].includes(location.hash)) showTab("notes");
+else if (["#game","#games","#missions"].includes(location.hash)) showTab("game");
+else showTab("lab");
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function mountMatch(el, pairs, statusEl) {
+  let picked = null, done = 0;
+  function paint() {
+    picked = null; done = 0;
+    statusEl.textContent = "0 / " + pairs.length + " " + t("matched");
+    statusEl.className = "status-line";
+    el.innerHTML = `<div class="match-col"></div><div class="match-col"></div>`;
+    const [L, R] = el.children;
+    pairs.forEach(p => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = p.left; b.dataset.id = p.id; b.dataset.side = "L";
+      L.appendChild(b);
+    });
+    shuffle(pairs).forEach(p => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = p.right; b.dataset.id = p.id; b.dataset.side = "R";
+      R.appendChild(b);
+    });
+  }
+  el.onclick = (e) => {
+    const b = e.target.closest("button");
+    if (!b || b.disabled) return;
+    if (!picked) { el.querySelectorAll("button.picked").forEach(x => x.classList.remove("picked")); b.classList.add("picked"); picked = b; return; }
+    if (picked === b) { b.classList.remove("picked"); picked = null; return; }
+    if (picked.dataset.side === b.dataset.side) { picked.classList.remove("picked"); b.classList.add("picked"); picked = b; return; }
+    const ok = picked.dataset.id === b.dataset.id;
+    if (ok) {
+      picked.classList.add("ok"); b.classList.add("ok");
+      picked.disabled = true; b.disabled = true;
+      picked.classList.remove("picked"); done += 1;
+      statusEl.className = "status-line ok";
+      statusEl.textContent = done === pairs.length ? t("allMatched") : done + " / " + pairs.length + " " + t("matched");
+      picked = null;
+    } else {
+      picked.classList.add("bad"); b.classList.add("bad");
+      const x = picked, y = b;
+      setTimeout(() => { x.classList.remove("bad","picked"); y.classList.remove("bad"); }, 450);
+      picked = null;
+      statusEl.className = "status-line bad";
+      statusEl.textContent = t("notPair");
+    }
+  };
+  paint();
+  return paint;
+}
+function matchPairs() {
+  if (currentLang === "zh") return [
+    { id:"L", left:"图拉普拉斯矩阵 L", right:"D − A；加权度在对角线上" },
+    { id:"F", left:"费德勒向量", right:"L 的第二特征向量（软一维割）" },
+    { id:"Sp", left:"谱", right:"L 的特征值全体" },
+    { id:"N", left:"归一化割 Ncut", right:"用体积归一化的割，从谱读出" },
+    { id:"R", left:"比率割 RatioCut", right:"用结点数归一化的割，从谱读出" },
+    { id:"G", left:"相似度图", right:"边权编码相似度；由此构造图拉普拉斯矩阵" }
+  ];
+  return [
+    { id:"L", left:"Graph Laplacian L", right:"D − A; weighted degrees on the diagonal" },
+    { id:"F", left:"Fiedler vector", right:"Second eigenvector of L (soft 1-D cut)" },
+    { id:"Sp", left:"Spectrum", right:"The eigenvalues of L" },
+    { id:"N", left:"Normalized Cut (Ncut)", right:"Cut normalized by volume; read from the spectrum" },
+    { id:"R", left:"RatioCut", right:"Cut normalized by node count; read from the spectrum" },
+    { id:"G", left:"Similarity graph", right:"Edge weights encode similarity; the Laplacian is built from this graph" }
+  ];
+}
+let resetRules = mountMatch(
+  document.getElementById("match-rules"),
+  matchPairs(),
+  document.getElementById("match-rules-status")
+);
+document.querySelector("[data-reset-match='rules']").onclick = () => resetRules();
+
+const DONE_KEY = "eda-lab-done:learn_partitioning:spectral-partition";
+const markBtn = document.getElementById("mark-done");
+function refreshDone() {
+  const on = localStorage.getItem(DONE_KEY) === "1";
+  markBtn.textContent = on ? t("markDoneOn") : t("markDone");
+  markBtn.classList.toggle("is-done", on);
+  document.getElementById("done-pill").hidden = !on;
+}
+markBtn.onclick = () => {
+  localStorage.setItem(DONE_KEY, localStorage.getItem(DONE_KEY)==="1" ? "0" : "1");
+  refreshDone();
+};
+refreshDone();
+
+const TINY_EDGES = GRAPH.edges;
+function prettyParts(asn, labels) {
+  const g = {};
+  for (const [n,c] of Object.entries(asn)) {
+    if (c !== "0" && c !== "1") continue;
+    (g[c] ||= []).push(labels[n] || n);
+  }
+  return Object.values(g).map(a => a.join("+")).sort().join("  |  ");
+}
+function truthCutSpectral() {
+  const r = spectralBisection(GRAPH.nodes, EDGE_OBJS);
+  const cut = new Set();
+  GRAPH.edges.forEach(([u,v]) => { if (r.assignment[u] !== r.assignment[v]) cut.add(key(u,v)); });
+  return { result: r, cut };
+}
+const MISSIONS = [
+  {
+    id: "er",
+    title: "01 · Night surge in the ER",
+    titleZh: "01 · 急诊夜班高峰",
+    crisis: "Five rooms share one night staff. Spectral (not greedy) should still isolate the two natural wards so only weak hallways stay cut.",
+    crisisZh: "五个房间共用一班夜班。谱方法（不是贪心）仍应分开两个自然病区，只切开弱走廊。",
+    labels: { A:"Triage", B:"OR", C:"Hall", D:"ICU", E:"Dialysis" },
+    labelsZh: { A:"分诊", B:"手术室", C:"走廊", D:"ICU", E:"透析" },
+    winText: "Wards Triage+OR+Hall and ICU+Dialysis. Remaining cut is Hall–ICU (2) and Hall–Dialysis (1).",
+    winTextZh: "病区：分诊+手术室+走廊 与 ICU+透析。剩余割是走廊–ICU（2）和走廊–透析（1）。",
+    failText: "Spectral prefix DE vs ABC leaves C–D and C–E cut.",
+    failTextZh: "谱前缀 DE 对 ABC 留下 C–D 与 C–E 被割。"
+  },
+  {
+    id: "grid",
+    title: "02 · Island the substation",
+    titleZh: "02 · 把变电站孤岛化",
+    crisis: "Five substations. Use the Fiedler order as a 1-D layout and cut the weak ties, not the 5-weight trunks.",
+    crisisZh: "五个变电站。用费德勒次序当一维布局，切开弱联络，不要切权重 5 的主干。",
+    labels: { A:"Plant", B:"City", C:"Tie", D:"Port", E:"Rail" },
+    labelsZh: { A:"电厂", B:"城区", C:"联络", D:"港口", E:"铁路" },
+    winText: "Islands Plant+City+Tie | Port+Rail. Trunks A–B and D–E stay inside.",
+    winTextZh: "孤岛：电厂+城区+联络 | 港口+铁路。主干 A–B、D–E 留在块内。",
+    failText: "Draw only the bridges C–D and C–E.",
+    failTextZh: "只画桥 C–D 与 C–E。"
+  },
+  {
+    id: "chip",
+    title: "03 · Seed the chip bipartition",
+    titleZh: "03 · 芯片双划分种子",
+    crisis: "Same netlist as the CAD lab. Spectral is the initializer: protect A–B and D–E, cut the C bridges.",
+    crisisZh: "与 CAD 实验同一网表。谱方法是初始化器：保护 A–B 与 D–E，切开 C 上的桥。",
+    labels: { A:"ALU", B:"RF", C:"Xbar", D:"L2", E:"Mem" },
+    labelsZh: { A:"ALU", B:"寄存器堆", C:"交叉开关", D:"L2", E:"存储器" },
+    winText: "Golden seed ABC|DE, cut 3. Later KL/FM can refine; they should not redo L.",
+    winTextZh: "标准种子 ABC|DE，割 3。随后 KL/FM 可精炼；它们不应重算图拉普拉斯矩阵 L。",
+    failText: "The cheap cut is C–D (2) + C–E (1).",
+    failTextZh: "便宜的割是 C–D（2）+ C–E（1）。"
+  }
+];
+const XP_KEY = "eda-lab-xp:spectral-partition";
+function renderXp() {
+  let solved = [];
+  try { solved = JSON.parse(localStorage.getItem(XP_KEY) || "[]"); } catch {}
+  const line = document.getElementById("xp-line");
+  if (line) line.textContent = t("xpLine") + ": " + solved.length + " / " + MISSIONS.length;
+}
+function markSolved(id) {
+  let solved = [];
+  try { solved = JSON.parse(localStorage.getItem(XP_KEY) || "[]"); } catch {}
+  if (!solved.includes(id)) solved.push(id);
+  localStorage.setItem(XP_KEY, JSON.stringify(solved));
+  renderXp();
+}
+function sketchSvg(drawnSet, pick, mark) {
+  return drawSketch(drawnSet, pick, mark, null);
+}
+function missionLoc(m) {
+  const zh = currentLang === "zh";
+  return {
+    title: zh ? m.titleZh : m.title,
+    crisis: zh ? m.crisisZh : m.crisis,
+    labels: zh ? m.labelsZh : m.labels,
+    winText: zh ? m.winTextZh : m.winText,
+    failText: zh ? m.failTextZh : m.failText
+  };
+}
+function mountMissions() {
+  const root = document.getElementById("mission-root");
+  if (!root) return;
+  root.innerHTML = MISSIONS.map(m => {
+    const loc = missionLoc(m);
+    return `
+    <div class="card" data-mission="${m.id}">
+      <div class="mission-head">
+        <h3 style="margin:0">${loc.title}</h3>
+        <span class="pill">${t("spectralK2")}</span>
+      </div>
+      <p>${loc.crisis}</p>
+      <p><strong>${t("map")}:</strong> ${Object.entries(loc.labels).map(([k,v]) => k+"="+v).join(" · ")}</p>
+      <p>${t("missionDraw")}</p>
+      <div class="graph draw" id="mg-${m.id}"></div>
+      <div class="controls">
+        <button type="button" class="btn btn-primary" data-mission-check="${m.id}">${t("checkDrawing")}</button>
+        <button type="button" class="btn btn-ghost" data-mission-clear="${m.id}">${t("clearLines")}</button>
+      </div>
+      <p class="status-line" id="ms-${m.id}"></p>
+    </div>`;
+  }).join("");
+  MISSIONS.forEach(m => {
+    const drawn = new Set();
+    let pickN = null, mark = null;
+    const box = document.getElementById("mg-"+m.id);
+    const st = document.getElementById("ms-"+m.id);
+    function paint() { box.innerHTML = sketchSvg(drawn, pickN, mark); }
+    function toggle(k) {
+      mark = null;
+      if (drawn.has(k)) drawn.delete(k); else drawn.add(k);
+      pickN = null;
+      st.className = "status-line";
+      st.textContent = drawn.size ? drawn.size + " " + t("linesDrawn") : t("pickFirst");
+      paint();
+    }
+    box.addEventListener("click", (e) => {
+      const edgeEl = e.target.closest("[data-edge]");
+      const nodeEl = e.target.closest("[data-node]");
+      if (edgeEl) { toggle(edgeEl.getAttribute("data-edge")); return; }
+      if (!nodeEl) return;
+      const n = nodeEl.getAttribute("data-node");
+      if (!pickN) { pickN = n; paint(); return; }
+      if (pickN === n) { pickN = null; paint(); return; }
+      const k = key(pickN, n);
+      const exists = TINY_EDGES.some(([u,v]) => key(u,v) === k);
+      if (!exists) {
+        st.className = "status-line bad";
+        st.textContent = t("noCorridorRooms");
+        pickN = n; paint(); return;
+      }
+      toggle(k);
+    });
+    document.querySelector("[data-mission-clear='"+m.id+"']").onclick = () => {
+      drawn.clear(); pickN = null; mark = null; st.className = "status-line"; st.textContent = ""; paint();
+    };
+    document.querySelector("[data-mission-check='"+m.id+"']").onclick = () => {
+      const loc = missionLoc(m);
+      const { result, cut } = truthCutSpectral();
+      mark = { truth: cut };
+      const extra = [...drawn].filter(k => !cut.has(k));
+      const missing = [...cut].filter(k => !drawn.has(k));
+      const ok = extra.length === 0 && missing.length === 0;
+      paint();
+      st.className = "status-line " + (ok ? "ok" : "bad");
+      if (ok) {
+        st.textContent = t("correctCut") + " " + loc.winText + " " + t("parts") + ": " + prettyParts(result.assignment, loc.labels) +
+          " · " + t("thCutsize") + " " + cutsize(result.assignment, EDGE_OBJS) + ".";
+        markSolved(m.id);
+      } else {
+        const miss = missing.map(k => k.replace("|","–")).join(", ") || "—";
+        const extras = extra.map(k => k.replace("|","–")).join(", ") || "—";
+        st.textContent = t("notYet") + " " + t("missingCut") + ": " + miss + ". " + t("extraLines") + ": " + extras +
+          ". " + t("colorHint") + " " + loc.failText;
+      }
+    };
+    paint();
+  });
+  renderXp();
+}
+mountMissions();
+
+const SEARCH = [
+  ["Video", "#clip"], ["English", "#clip"], ["中文", "#clip"], ["Game", "#game"], ["Play the logic", "#games"], ["Missions", "#missions"],
+  ["Tool", "#tool"], ["Quiz", "#quiz"],
+  ["Rules", "#rules"], ["Walkthrough", "#walk"], ["Implement", "#implement"], ["Pitfalls", "#pitfalls"], ["Course notes", "#notes"],
+  ["图拉普拉斯矩阵", "#terms"], ["特征向量", "#terms"], ["特征值", "#terms"], ["相似度图", "#terms"],
+  ["归一化割", "#terms"], ["比率割", "#terms"], ["谱", "#terms"], ["术语", "#terms"],
+  ["实验", "#lab"], ["游戏", "#game"], ["课程笔记", "#notes"], ["测验", "#quiz"]
+];
+const sInput = document.getElementById("site-search-input");
+const sBox = document.querySelector(".site-search-results");
+sInput.addEventListener("input", () => {
+  const q = sInput.value.trim().toLowerCase();
+  if (!q) { sBox.hidden = true; sBox.innerHTML=""; return; }
+  const hits = SEARCH.filter(([t]) => t.toLowerCase().includes(q));
+  sBox.hidden = false;
+  sBox.innerHTML = hits.length ? hits.map(([t,h]) => `<a class="site-search-hit" href="${h}">${t}</a>`).join("") : `<div class="site-search-hit">${t("noMatches")}</div>`;
+});
+sBox.addEventListener("click", (e) => {
+  sBox.hidden = true;
+  const a = e.target.closest("a");
+  if (!a) return;
+  const href = a.getAttribute("href");
+  const notes = ["#rules","#walk","#implement","#pitfalls","#notes"].includes(href);
+  const game = ["#game","#games","#missions"].includes(href);
+  showTab(notes ? "notes" : game ? "game" : "lab");
+});
+
+const QUIZ = [
+  { id:"q1", answer:"0",
+    prompt:{
+      en:"1. In the course notes, this lab’s primary algorithm is…",
+      zh:"1. 课程笔记里，本实验的主算法是…"
+    },
+    choices:{
+      en:["spectral bipartition (graph Laplacian / Fiedler vector)","greedy pair merge (Lab 03)","Kernighan–Lin (KL) refinement","Fiduccia–Mattheyses (FM) refinement"],
+      zh:["谱双划分（图拉普拉斯矩阵 / 费德勒向量）","贪心成对合并（实验 03）","Kernighan–Lin（KL）精炼","Fiduccia–Mattheyses（FM）精炼"]
+    },
+    explain:{
+      en:"Course notes: spectral bipartition is the engine here. KL / FM later refine; they do not replace the Laplacian step.",
+      zh:"课程笔记：这里的引擎是谱双划分。KL / FM 随后精炼，但不取代图拉普拉斯矩阵这一步。"
+    } },
+  { id:"q2", answer:"0",
+    prompt:{
+      en:"2. The course notes define the graph Laplacian as…",
+      zh:"2. 课程笔记把图拉普拉斯矩阵定义为…"
+    },
+    choices:{
+      en:["L = D − A (weighted degrees on the diagonal)","L = A − D","L = A (adjacency only)","L = D (degree matrix only)"],
+      zh:["L = D − A（加权度在对角线上）","L = A − D","L = A（只要邻接）","L = D（只要度矩阵）"]
+    },
+    explain:{
+      en:"Walkthrough: spectral methods read connectivity from L = D − A.",
+      zh:"走查：谱方法从图拉普拉斯矩阵 L = D − A 读连通性。"
+    } },
+  { id:"q3", answer:"1",
+    prompt:{
+      en:"3. In the course notes, the Fiedler vector is…",
+      zh:"3. 课程笔记里，费德勒向量是…"
+    },
+    choices:{
+      en:["the all-ones vector (eigenvalue 0)","the eigenvector of the second-smallest eigenvalue of L","the last row of the adjacency matrix","a random 1-D layout of the chip"],
+      zh:["全 1 向量（特征值 0）","L 第二小特征值对应的特征向量","邻接矩阵的最后一行","芯片上的随机一维布局"]
+    },
+    explain:{
+      en:"Notes: the all-ones vector is trivial (λ=0). The Fiedler vector is the second eigenvector of L.",
+      zh:"笔记：全 1 向量是平凡特征向量（λ=0）。费德勒向量是 L 的第二特征向量。"
+    } },
+  { id:"q4", answer:"1",
+    prompt:{
+      en:"4. After the algorithm, the course notes say you should report…",
+      zh:"4. 课程笔记说跑完算法后应报告…"
+    },
+    choices:{
+      en:["cutsize only; skip balance","part assignment plus cutsize and balance","only the Fiedler values","only the Laplacian matrix"],
+      zh:["只要割规模；不必报平衡","划分结果以及割规模与平衡","只要费德勒值","只要图拉普拉斯矩阵"]
+    },
+    explain:{
+      en:"Pitfalls and implement track: always report parts, cutsize, and balance together.",
+      zh:"易错点与实现轨道：始终同时报告划分、割规模与平衡。"
+    } },
+  { id:"q5", answer:"1",
+    prompt:{
+      en:"5. In the course-notes walkthrough, Fiedler order low→high on tiny_graph is…",
+      zh:"5. 课程笔记走查中，tiny_graph 上费德勒次序从低到高是…"
+    },
+    choices:{
+      en:["A, B, C, D, E","E, D, C, B, A","C, D, E, B, A","D, E, C, B, A"],
+      zh:["A, B, C, D, E","E, D, C, B, A","C, D, E, B, A","D, E, C, B, A"]
+    },
+    explain:{
+      en:"Notes: E is most negative; A is most positive. Order: E, D, C, B, A.",
+      zh:"笔记：E 最负；A 最正。次序：E, D, C, B, A。"
+    } },
+  { id:"q6", answer:"1",
+    prompt:{
+      en:"6. The course-notes prefix table: the winning balanced prefix is…",
+      zh:"6. 课程笔记的前缀表：获胜的平衡前缀是…"
+    },
+    choices:{
+      en:["{E} vs {A,B,C,D}, cutsize 6","{D,E} vs {A,B,C}, cutsize 3","{C,D,E} vs {A,B}, cutsize 5","{B,C,D,E} vs {A}, cutsize 6"],
+      zh:["{E} 对 {A,B,C,D}，割规模 6","{D,E} 对 {A,B,C}，割规模 3","{C,D,E} 对 {A,B}，割规模 5","{B,C,D,E} 对 {A}，割规模 6"]
+    },
+    explain:{
+      en:"Walkthrough table: prefix DE vs ABC, cut edges C–D and C–E, cutsize 3. Golden ABC|DE (or DE|ABC).",
+      zh:"走查表：前缀 DE 对 ABC，割边 C–D 与 C–E，割规模 3。标准答案 ABC|DE（或 DE|ABC）。"
+    } }
+];
+
+const root = document.getElementById("quiz-root");
+function locQuiz(q) {
+  const lang = currentLang === "zh" ? "zh" : "en";
+  return { prompt: q.prompt[lang], choices: q.choices[lang], explain: q.explain[lang] };
+}
+function renderQuiz() {
+  const saved = {};
+  root.querySelectorAll(".quiz-item").forEach(item => {
+    const picked = item.querySelector("input:checked");
+    if (picked) saved[item.dataset.id] = picked.value;
+  });
+  root.innerHTML = QUIZ.map(q => {
+    const loc = locQuiz(q);
+    const opts = loc.choices.map((c,i) => `<label><input type="radio" name="${q.id}" value="${i}"${saved[q.id]===String(i)?" checked":""}>${c}</label>`).join("");
+    return `<div class="quiz-item" data-id="${q.id}" data-answer="${q.answer}" data-explain="${loc.explain.replaceAll('"','&quot;')}">
+      <p class="prompt">${loc.prompt}</p>
+      <div class="quiz-choices">${opts}</div>
+      <button type="button" class="btn btn-secondary" data-check="${q.id}">${t("checkAnswer")}</button>
+      <div class="quiz-result"></div>
+    </div>`;
+  }).join("");
+}
+function gradeItem(item) {
+  const ans = item.dataset.answer;
+  const picked = item.querySelector("input:checked");
+  const box = item.querySelector(".quiz-result");
+  box.classList.add("show");
+  if (!picked) { box.className="quiz-result show bad"; box.textContent=t("pickAnswer"); return false; }
+  const ok = picked.value === ans;
+  box.className = "quiz-result show " + (ok ? "ok" : "bad");
+  box.textContent = (ok ? t("correct") : t("notQuite")) + item.dataset.explain;
+  return ok;
+}
+root.addEventListener("click", e => {
+  const id = e.target.dataset.check;
+  if (!id) return;
+  gradeItem(root.querySelector(`[data-id="${id}"]`));
+});
+document.getElementById("score-quiz").onclick = () => {
+  let n=0, ok=0;
+  root.querySelectorAll(".quiz-item").forEach(item => { n++; if (gradeItem(item)) ok++; });
+  const sum = document.querySelector(".quiz-summary");
+  sum.classList.add("show");
+  sum.textContent = t("score") + `: ${ok} / ${n}`;
+};
+renderQuiz();
+
+document.getElementById("checklist").addEventListener("change", () => {
+  const boxes = [...document.querySelectorAll("#checklist input")].map(x => x.checked);
+  localStorage.setItem("eda-lab-check:spectral-partition", JSON.stringify(boxes));
+});
+try {
+  const saved = JSON.parse(localStorage.getItem("eda-lab-check:spectral-partition")||"[]");
+  document.querySelectorAll("#checklist input").forEach((x,i) => { if (saved[i]) x.checked = true; });
+} catch {}
+
+const VIDEO = {
+  en: { src: "media/spectral-en.mp4?v=yourturn-155", caption: "Spectral bipartition: visual intuition + course walkthrough" },
+  zh: { src: "media/spectral-zh.mp4?v=fit16x9", caption: "谱双划分：用线性代数切割网络" }
+};
+const VID_KEY = "eda-lab-video-lang:spectral-partition";
+function setVideoLang(lang) {
+  if (!VIDEO[lang]) lang = "en";
+  window.currentLang = lang;
+  localStorage.setItem(VID_KEY, lang);
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.querySelectorAll("[data-video-lang]").forEach(b => {
+    b.setAttribute("aria-selected", String(b.dataset.videoLang === lang));
+  });
+  const cap = document.getElementById("video-caption");
+  if (cap) cap.textContent = VIDEO[lang].caption;
+  applyI18n();
+  refreshDone();
+  renderWalk(currentWalk);
+  resetRules = mountMatch(
+    document.getElementById("match-rules"),
+    matchPairs(),
+    document.getElementById("match-rules-status")
+  );
+  document.querySelector("[data-reset-match='rules']").onclick = () => resetRules();
+  mountMissions();
+  renderQuiz();
+  paintTool();
+  if (prefixIdx < 0 && !order) {
+    setToolStatus(t("pickFirst"));
+    document.getElementById("tool-log").textContent = t("starterLog") + metricsText();
+  }
+  const v = document.getElementById("lab-video");
+  if (!v) return;
+  const next = VIDEO[lang].src;
+  const current = v.currentSrc || (v.querySelector("source") && v.querySelector("source").src) || "";
+  if (current.indexOf(next.split("?")[0]) !== -1 && current.indexOf("fit16x9") !== -1 &&
+      ((lang === "zh" && current.indexOf("spectral-zh") !== -1) || (lang === "en" && current.indexOf("spectral-en") !== -1))) {
+    return;
+  }
+  v.pause();
+  v.removeAttribute("src");
+  const srcEl = v.querySelector("source");
+  if (srcEl) srcEl.src = next;
+  v.src = next;
+  v.load();
+}
+document.querySelectorAll("[data-video-lang]").forEach(b => {
+  b.onclick = () => setVideoLang(b.dataset.videoLang);
+});
+const savedLang = localStorage.getItem(VID_KEY);
+const guessLang = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+setVideoLang(savedLang === "zh" || savedLang === "en" ? savedLang : guessLang);
+</script>
+</body>
+</html>
